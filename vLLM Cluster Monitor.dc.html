@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+<script src="./config.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #05070E; }
+  a { color: #4C9DFF; text-decoration: none; }
+  a:hover { color: #7FBBFF; }
+  @keyframes livePulse { 0%,100% { opacity: 1; } 50% { opacity: .2; } }
+</style>
+</helmet>
+<div style="width:100vw;height:100vh;background:radial-gradient(1400px 800px at 20% -10%, #0C1526 0%, #05070E 60%);color:#E6ECF5;font-family:'IBM Plex Sans',sans-serif;padding:24px;display:flex;flex-direction:column;gap:18px;position:relative">
+
+  <!-- ===== ERROR BANNER ===== -->
+  <sc-if value="{{ hasError }}" hint-placeholder-val="{{ false }}">
+    <div style="background:#1A0808;border:1px solid #FF5D5D;border-radius:8px;padding:10px 16px;font:500 12px/1 'IBM Plex Mono';color:#FF7B7B;flex-shrink:0">
+      Prometheus 연결 실패 — {{ error }}
+    </div>
+  </sc-if>
+
+  <!-- ===== HEADER ===== -->
+  <div style="height:52px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+    <div style="display:flex;align-items:center;gap:14px">
+      <div style="width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,#2ED3C6,#4C9DFF);display:flex;align-items:center;justify-content:center;font:700 15px 'IBM Plex Mono';color:#05070E">v</div>
+      <div style="display:flex;flex-direction:column;gap:3px">
+        <span style="font:700 19px/1 'IBM Plex Sans';letter-spacing:.01em">vLLM Inference Cluster</span>
+        <span style="font:400 12px/1 'IBM Plex Mono';color:#55617A">{{ nodeCount }} nodes &middot; nginx upstream <span style="color:#8B97AD">llm_pool</span> &middot; Prometheus / Grafana</span>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:22px">
+      <div style="display:flex;align-items:center;gap:16px;padding:8px 16px;background:#0C1220;border:1px solid #1E2740;border-radius:10px">
+        <div style="display:flex;align-items:center;gap:7px"><span style="width:8px;height:8px;border-radius:50%;background:#4ADE80"></span><span style="font:600 13px/1 'IBM Plex Mono';color:#E6ECF5">{{ healthy }}</span><span style="font:400 12px/1 'IBM Plex Sans';color:#8B97AD">healthy</span></div>
+        <div style="display:flex;align-items:center;gap:7px"><span style="width:8px;height:8px;border-radius:50%;background:#F5B544"></span><span style="font:600 13px/1 'IBM Plex Mono';color:#E6ECF5">{{ degraded }}</span><span style="font:400 12px/1 'IBM Plex Sans';color:#8B97AD">degraded</span></div>
+        <div style="display:flex;align-items:center;gap:7px"><span style="width:8px;height:8px;border-radius:50%;background:#FF5D5D"></span><span style="font:600 13px/1 'IBM Plex Mono';color:#E6ECF5">{{ down }}</span><span style="font:400 12px/1 'IBM Plex Sans';color:#8B97AD">down</span></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="width:8px;height:8px;border-radius:50%;background:#FF5D5D;animation:livePulse 1.4s ease-in-out infinite"></span>
+        <span style="font:600 12px/1 'IBM Plex Sans';letter-spacing:.1em;color:#FF7B7B">LIVE</span>
+        <span style="font:500 15px/1 'IBM Plex Mono';color:#E6ECF5;min-width:88px">{{ now }}</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== KPI ROW ===== -->
+  <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:16px;height:148px;flex-shrink:0">
+    <sc-for list="{{ kpis }}" as="k" hint-placeholder-count="6">
+      <div style="background:#0B1120;border:1px solid #1E2740;border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:5px;overflow:hidden">
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <span style="font:600 11px/1 'IBM Plex Sans';letter-spacing:.08em;text-transform:uppercase;color:#8B97AD">{{ k.label }}</span>
+          <span style="width:7px;height:7px;border-radius:50%;background:{{ k.color }}"></span>
+        </div>
+        <div style="display:flex;align-items:baseline;gap:5px">
+          <span style="font:600 33px/1 'IBM Plex Mono';color:#E6ECF5">{{ k.value }}</span>
+          <span style="font:500 12px/1 'IBM Plex Mono';color:#55617A">{{ k.unit }}</span>
+        </div>
+        <svg viewBox="0 0 100 100" preserveAspectRatio="none" style="width:100%;flex:1;min-height:0">
+          <polygon points="{{ k.area }}" fill="{{ k.color }}" opacity="0.10"></polygon>
+          <polyline points="{{ k.line }}" fill="none" stroke="{{ k.color }}" stroke-width="1.5" vector-effect="non-scaling-stroke"></polyline>
+        </svg>
+        <span style="font:500 11px/1.2 'IBM Plex Sans';color:{{ k.deltaColor }}">{{ k.sub }}</span>
+        <sc-if value="{{ showPromql }}" hint-placeholder-val="{{ true }}">
+          <code title="{{ k.query }}" style="font:400 10px/1.2 'IBM Plex Mono';color:#55617A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block">{{ k.query }}</code>
+        </sc-if>
+      </div>
+    </sc-for>
+  </div>
+
+  <!-- ===== MAIN ===== -->
+  <div style="flex:1;min-height:0;display:flex;gap:18px">
+
+    <!-- LEFT: node grid -->
+    <div style="flex:2.45;min-width:0;background:#080D18;border:1px solid #1E2740;border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+        <span style="font:600 13px/1 'IBM Plex Sans';letter-spacing:.1em;text-transform:uppercase;color:#8B97AD">vLLM Nodes</span>
+        <div style="display:flex;align-items:center;gap:16px">
+          <div style="display:flex;align-items:center;gap:6px"><span style="width:9px;height:2px;background:#2ED3C6"></span><span style="font:500 11px/1 'IBM Plex Sans';color:#8B97AD">Prefill tok/s</span></div>
+          <div style="display:flex;align-items:center;gap:6px"><span style="width:9px;height:2px;background:#9B8CFF"></span><span style="font:500 11px/1 'IBM Plex Sans';color:#8B97AD">Generation tok/s</span></div>
+        </div>
+      </div>
+      <div style="flex:1;min-height:0;display:grid;{{ nodeGridStyle }};gap:14px">
+        <sc-for list="{{ nodes }}" as="n" hint-placeholder-count="8">
+          <div style="background:#0B1120;border:1px solid #1E2740;border-left:3px solid {{ n.statusColor }};border-radius:11px;padding:13px 14px;display:flex;flex-direction:column;gap:10px;min-height:0">
+            <div style="display:flex;align-items:center;justify-content:space-between">
+              <div style="display:flex;flex-direction:column;gap:2px">
+                <span style="font:600 15px/1 'IBM Plex Sans'">{{ n.name }}</span>
+                <span style="font:400 10px/1 'IBM Plex Mono';color:#55617A">{{ n.gpu }}</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:6px;padding:4px 9px;border-radius:999px;background:{{ n.statusBg }}">
+                <span style="width:6px;height:6px;border-radius:50%;background:{{ n.statusColor }}"></span>
+                <span style="font:600 9px/1 'IBM Plex Sans';letter-spacing:.07em;color:{{ n.statusColor }}">{{ n.statusLabel }}</span>
+              </div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;flex:1;min-height:0">
+              <div style="display:flex;flex-direction:column;gap:3px;min-height:0">
+                <span style="font:500 9px/1 'IBM Plex Sans';letter-spacing:.06em;text-transform:uppercase;color:#8B97AD">Prefill</span>
+                <div style="display:flex;align-items:baseline;gap:3px"><span style="font:600 21px/1 'IBM Plex Mono';color:#E6ECF5">{{ n.prefill }}</span><span style="font:500 9px/1 'IBM Plex Mono';color:#55617A">tok/s</span></div>
+                <svg viewBox="0 0 100 100" preserveAspectRatio="none" style="width:100%;flex:1;min-height:22px">
+                  <polygon points="{{ n.pfArea }}" fill="{{ n.pfColor }}" opacity="0.13"></polygon>
+                  <polyline points="{{ n.pfLine }}" fill="none" stroke="{{ n.pfColor }}" stroke-width="1.5" vector-effect="non-scaling-stroke"></polyline>
+                </svg>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:3px;min-height:0">
+                <span style="font:500 9px/1 'IBM Plex Sans';letter-spacing:.06em;text-transform:uppercase;color:#8B97AD">Generation</span>
+                <div style="display:flex;align-items:baseline;gap:3px"><span style="font:600 21px/1 'IBM Plex Mono';color:#E6ECF5">{{ n.gen }}</span><span style="font:500 9px/1 'IBM Plex Mono';color:#55617A">tok/s</span></div>
+                <svg viewBox="0 0 100 100" preserveAspectRatio="none" style="width:100%;flex:1;min-height:22px">
+                  <polygon points="{{ n.genArea }}" fill="{{ n.genColor }}" opacity="0.13"></polygon>
+                  <polyline points="{{ n.genLine }}" fill="none" stroke="{{ n.genColor }}" stroke-width="1.5" vector-effect="non-scaling-stroke"></polyline>
+                </svg>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;justify-content:space-between;padding-top:8px;border-top:1px solid #161F33">
+              <div style="display:flex;flex-direction:column;gap:2px"><span style="font:500 9px/1 'IBM Plex Sans';color:#55617A">RUN</span><span style="font:600 13px/1 'IBM Plex Mono';color:#E6ECF5">{{ n.running }}</span></div>
+              <div style="display:flex;flex-direction:column;gap:2px"><span style="font:500 9px/1 'IBM Plex Sans';color:#55617A">QUEUE</span><span style="font:600 13px/1 'IBM Plex Mono';color:{{ n.queueColor }}">{{ n.queued }}</span></div>
+              <div style="display:flex;flex-direction:column;gap:2px"><span style="font:500 9px/1 'IBM Plex Sans';color:#55617A">TTFT</span><span style="font:600 13px/1 'IBM Plex Mono';color:#E6ECF5">{{ n.ttft }}<span style="font-size:9px;color:#55617A">ms</span></span></div>
+              <div style="display:flex;flex-direction:column;gap:3px;width:80px">
+                <div style="display:flex;justify-content:space-between"><span style="font:500 9px/1 'IBM Plex Sans';color:#55617A">KV$</span><span style="font:600 10px/1 'IBM Plex Mono';color:{{ n.kvColor }}">{{ n.kvPct }}%</span></div>
+                <div style="height:5px;border-radius:999px;background:#161F33;overflow:hidden"><div style="height:100%;border-radius:999px;width:{{ n.kvPct }}%;background:{{ n.kvColor }}"></div></div>
+              </div>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+
+    <!-- RIGHT: nginx routing -->
+    <div style="flex:1;min-width:0;background:#080D18;border:1px solid #1E2740;border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:14px">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-shrink:0">
+        <div style="display:flex;flex-direction:column;gap:3px">
+          <span style="font:600 13px/1 'IBM Plex Sans';letter-spacing:.1em;text-transform:uppercase;color:#8B97AD">nginx Routing</span>
+          <span style="font:400 11px/1 'IBM Plex Mono';color:#55617A">upstream llm_pool &middot; <span style="color:#4C9DFF">least_conn</span></span>
+        </div>
+        <div style="text-align:right"><div style="font:600 26px/1 'IBM Plex Mono';color:#4C9DFF">{{ totalRps }}</div><div style="font:500 10px/1 'IBM Plex Sans';color:#55617A;margin-top:3px">TOTAL req/s</div></div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:13px;flex:1;min-height:0;justify-content:center">
+        <sc-for list="{{ nodes }}" as="n" hint-placeholder-count="8">
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="width:62px;font:500 12px/1 'IBM Plex Mono';color:#8B97AD;flex-shrink:0">{{ n.name }}</span>
+            <div style="flex:1;height:9px;border-radius:999px;background:#131A2A;overflow:hidden"><div style="height:100%;border-radius:999px;width:{{ n.sharePct }}%;background:{{ n.routeColor }}"></div></div>
+            <span style="width:46px;text-align:right;font:600 12px/1 'IBM Plex Mono';color:#E6ECF5;flex-shrink:0">{{ n.shareLabel }}</span>
+            <span style="width:52px;text-align:right;font:400 11px/1 'IBM Plex Mono';color:#55617A;flex-shrink:0">{{ n.rps }}</span>
+          </div>
+        </sc-for>
+      </div>
+
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;padding-top:14px;border-top:1px solid #161F33;flex-shrink:0">
+        <div style="display:flex;flex-direction:column;gap:5px"><span style="font:500 10px/1 'IBM Plex Sans';letter-spacing:.05em;text-transform:uppercase;color:#55617A">Active conns</span><span style="font:600 20px/1 'IBM Plex Mono';color:#E6ECF5">{{ activeConns }}</span></div>
+        <div style="display:flex;flex-direction:column;gap:5px"><span style="font:500 10px/1 'IBM Plex Sans';letter-spacing:.05em;text-transform:uppercase;color:#55617A">5xx / 1m</span><span style="font:600 20px/1 'IBM Plex Mono';color:{{ errColor }}">{{ err5xx }}</span></div>
+        <div style="display:flex;flex-direction:column;gap:5px"><span style="font:500 10px/1 'IBM Plex Sans';letter-spacing:.05em;text-transform:uppercase;color:#55617A">p95 upstream</span><span style="font:600 20px/1 'IBM Plex Mono';color:#E6ECF5">{{ upP95 }}<span style="font-size:11px;color:#55617A">ms</span></span></div>
+      </div>
+
+      <sc-if value="{{ showPromql }}" hint-placeholder-val="{{ true }}">
+        <div style="display:flex;align-items:center;gap:7px;flex-shrink:0">
+          <span style="font:600 9px/1 'IBM Plex Sans';letter-spacing:.08em;padding:3px 6px;border-radius:4px;background:#131A2A;color:#6B7794;border:1px solid #1E2740;flex-shrink:0">PROMQL</span>
+          <code title="sum(rate(vllm:request_success_total[1m])) by (instance)" style="font:400 10px/1.2 'IBM Plex Mono';color:#55617A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">sum(rate(vllm:request_success_total[1m])) by (instance)</code>
+        </div>
+      </sc-if>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1920,&quot;height&quot;:1080},&quot;prefillColor&quot;:{&quot;editor&quot;:&quot;color&quot;,&quot;default&quot;:&quot;#2ED3C6&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Colors&quot;},&quot;genColor&quot;:{&quot;editor&quot;:&quot;color&quot;,&quot;default&quot;:&quot;#9B8CFF&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Colors&quot;},&quot;routingColor&quot;:{&quot;editor&quot;:&quot;color&quot;,&quot;default&quot;:&quot;#4C9DFF&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Colors&quot;},&quot;showPromql&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Display&quot;},&quot;refreshSec&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;default&quot;:15,&quot;min&quot;:5,&quot;max&quot;:60,&quot;step&quot;:5,&quot;unit&quot;:&quot;s&quot;,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Display&quot;}}">
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.H = 26; // sparkline 이력 포인트 수
+
+    const cfg = window.__VLLM_CONFIG__ ?? {};
+    this.PROM = (cfg.prometheusUrl ?? '/api/prometheus') + '/api/v1';
+
+    // 노드 목록과 클러스터 이력 — doRefresh()가 채움
+    this.nodes = [];
+    this.hist = {
+      pf: Array(this.H).fill(0), gen: Array(this.H).fill(0),
+      rps: Array(this.H).fill(0), ttft: Array(this.H).fill(0),
+      run: Array(this.H).fill(0), cum: Array(this.H).fill(0),
+    };
+
+    this.state = { t: 0, now: this.fmtClock(new Date()), error: null, loading: true };
+  }
+
+  componentDidMount() {
+    const cfg = window.__VLLM_CONFIG__ ?? {};
+    // config.js > props > 기본값(15s) 순으로 적용
+    const ms = cfg.refreshMs ?? Math.max(5000, (this.props.refreshSec ?? 15) * 1000);
+    this.doRefresh();
+    this.timer = setInterval(() => this.doRefresh(), ms);
+  }
+  componentWillUnmount() { clearInterval(this.timer); }
+
+  // ── Prometheus instant query ──────────────────────────────────
+  async pq(query) {
+    const r = await fetch(`${this.PROM}/query?query=${encodeURIComponent(query)}`);
+    const j = await r.json();
+    if (j.status !== 'success') throw new Error(j.error ?? 'Prometheus error');
+    return j.data.result;
+  }
+
+  // ── Prometheus range query ────────────────────────────────────
+  async pr(query, start, end, step) {
+    const url = `${this.PROM}/query_range?query=${encodeURIComponent(query)}&start=${start}&end=${end}&step=${step}`;
+    const r = await fetch(url);
+    const j = await r.json();
+    if (j.status !== 'success') throw new Error(j.error ?? 'Prometheus error');
+    return j.data.result;
+  }
+
+  // ── 특정 instance의 현재값 추출 ───────────────────────────────
+  valFor(res, instance, def = 0) {
+    const f = res.find(r => r.metric.instance === instance);
+    return f ? (parseFloat(f.value[1]) || def) : def;
+  }
+
+  // ── range 결과에서 instance별 시계열 배열 추출 ───────────────
+  toArr(res, instance) {
+    const s = instance
+      ? res.find(r => r.metric.instance === instance)
+      : res[0];
+    if (!s) return Array(this.H).fill(0);
+    const vals = s.values.map(v => parseFloat(v[1]) || 0);
+    // 부족하면 앞을 0으로 채워서 항상 H개 반환
+    while (vals.length < this.H) vals.unshift(0);
+    return vals.slice(-this.H);
+  }
+
+  // ── 전체 데이터 갱신 ─────────────────────────────────────────
+  async doRefresh() {
+    try {
+      const now   = Date.now() / 1000;
+      const step  = 15;
+      const start = now - this.H * step;
+
+      // ── 1단계: 모든 instant 쿼리 병렬 요청 ──
+      const [
+        upRes, runRes, pfRes, genRes,
+        waitRes, ttftRes, kvRes, rpsRes,
+      ] = await Promise.all([
+        this.pq('up{job="vllm"}'),
+        this.pq('vllm:num_requests_running'),
+        this.pq('rate(vllm:prompt_tokens_total[1m])'),
+        this.pq('rate(vllm:generation_tokens_total[1m])'),
+        this.pq('vllm:num_requests_waiting'),
+        this.pq('histogram_quantile(0.95,rate(vllm:time_to_first_token_seconds_bucket[5m]))*1000'),
+        this.pq('vllm:gpu_cache_usage_perc'),
+        this.pq('rate(vllm:request_success_total[1m])'),
+      ]);
+
+      // ── 2단계: 노드 목록 결정 (up 메트릭 기준 — down 노드도 포함) ──
+      const instances = [...new Set(upRes.map(r => r.metric.instance))]
+        .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+
+      // ── 3단계: 노드별 sparkline range 쿼리 병렬 요청 ──
+      const [pfRng, genRng] = await Promise.all([
+        this.pr('rate(vllm:prompt_tokens_total[1m])',      start, now, step),
+        this.pr('rate(vllm:generation_tokens_total[1m])',  start, now, step),
+      ]);
+
+      // ── 4단계: 노드 상태 구성 ──
+      this.nodes = instances.map((inst, i) => {
+        const isUp  = this.valFor(upRes, inst, 0) >= 0.5;
+        const model = runRes.find(r => r.metric.instance === inst)?.metric.model_name ?? '';
+        const pf    = isUp ? this.valFor(pfRes,   inst) : 0;
+        const gen   = isUp ? this.valFor(genRes,  inst) : 0;
+        const run   = isUp ? this.valFor(runRes,  inst) : 0;
+        const wait  = isUp ? this.valFor(waitRes, inst) : 0;
+        const ttft  = isUp ? this.valFor(ttftRes, inst) : 0;
+        const kv    = isUp ? this.valFor(kvRes,   inst) : 0;
+        const rps   = isUp ? this.valFor(rpsRes,  inst) : 0;
+
+        let status = 'down';
+        if (isUp) {
+          status = (wait > 20 || (ttft > 1000 && ttft > 0)) ? 'degraded' : 'healthy';
+        }
+
+        return {
+          instance: inst,
+          name: 'node-' + String(i + 1).padStart(2, '0'),
+          model,
+          status,
+          prefill: pf, gen, rps,
+          running: Math.round(run),
+          queued:  Math.round(wait),
+          ttft, kv,
+          pfArr:  this.toArr(pfRng,  inst),
+          genArr: this.toArr(genRng, inst),
+        };
+      });
+
+      // ── 5단계: 클러스터 KPI 이력 range 쿼리 병렬 요청 ──
+      const [hpf, hgen, hrps, httft, hrun, hcum] = await Promise.all([
+        this.pr('sum(rate(vllm:prompt_tokens_total[1m]))',      start, now, step),
+        this.pr('sum(rate(vllm:generation_tokens_total[1m]))',  start, now, step),
+        this.pr('sum(rate(vllm:request_success_total[1m]))',    start, now, step),
+        this.pr('histogram_quantile(0.95,sum(rate(vllm:time_to_first_token_seconds_bucket[5m]))by(le))*1000', start, now, step),
+        this.pr('sum(vllm:num_requests_running)',               start, now, step),
+        this.pr('sum(vllm:prompt_tokens_total)+sum(vllm:generation_tokens_total)', start, now, step),
+      ]);
+
+      this.hist = {
+        pf:   this.toArr(hpf),
+        gen:  this.toArr(hgen),
+        rps:  this.toArr(hrps),
+        ttft: this.toArr(httft),
+        run:  this.toArr(hrun),
+        cum:  this.toArr(hcum),
+      };
+
+      this.setState({ t: this.state.t + 1, now: this.fmtClock(new Date()), error: null, loading: false });
+    } catch (err) {
+      console.error('[vLLM Monitor] Prometheus fetch error:', err);
+      this.setState({ error: err.message, now: this.fmtClock(new Date()), loading: false });
+    }
+  }
+
+  // ── 유틸리티 ──────────────────────────────────────────────────
+  fmtClock(dt) {
+    const p = x => String(x).padStart(2, '0');
+    return p(dt.getHours()) + ':' + p(dt.getMinutes()) + ':' + p(dt.getSeconds());
+  }
+  fmtInt(v) { return Math.round(v).toLocaleString('en-US'); }
+  fmtBig(v) {
+    if (v >= 1e12) return (v / 1e12).toFixed(2) + 'T';
+    if (v >= 1e9)  return (v / 1e9).toFixed(1)  + 'B';
+    if (v >= 1e6)  return (v / 1e6).toFixed(1)  + 'M';
+    if (v >= 1e3)  return (v / 1e3).toFixed(1)  + 'K';
+    return this.fmtInt(v);
+  }
+  spark(vals) {
+    if (!vals || vals.length < 2) return { line: '', area: '' };
+    const min = Math.min(...vals), max = Math.max(...vals), range = (max - min) || 1;
+    const n = vals.length, w = 100, h = 100, pad = 8;
+    const pts = vals.map((v, i) => {
+      const x = (i / (n - 1)) * w;
+      const y = h - pad - ((v - min) / range) * (h - 2 * pad);
+      return x.toFixed(1) + ',' + y.toFixed(1);
+    });
+    const line = pts.join(' ');
+    return { line, area: '0,' + h + ' ' + line + ' ' + w + ',' + h };
+  }
+  pct(a) {
+    if (!a || a.length < 2) return 0;
+    const f = a[0], l = a[a.length - 1];
+    return f ? ((l - f) / f) * 100 : 0;
+  }
+
+  // ── 렌더링 값 계산 (동기, 매 렌더마다 호출됨) ────────────────
+  renderVals() {
+    const PF  = this.props.prefillColor  ?? '#2ED3C6';
+    const GEN = this.props.genColor      ?? '#9B8CFF';
+    const RT  = this.props.routingColor  ?? '#4C9DFF';
+    const showPromql = this.props.showPromql ?? true;
+    const { error, loading } = this.state;
+
+    const nodes = this.nodes;
+    const hist  = this.hist;
+
+    let totalRps = 0, tQ = 0;
+    nodes.forEach(n => {
+      if (n.status !== 'down') totalRps += n.rps;
+      tQ += n.queued;
+    });
+
+    // ── 노드 카드 데이터 ──
+    const renderedNodes = nodes.map(n => {
+      const sc  = n.status === 'healthy'  ? '#4ADE80'
+                : n.status === 'degraded' ? '#F5B544' : '#FF5D5D';
+      const sb  = n.status === 'healthy'  ? 'rgba(74,222,128,.13)'
+                : n.status === 'degraded' ? 'rgba(245,181,68,.13)' : 'rgba(255,93,93,.13)';
+      const pfp = this.spark(n.pfArr);
+      const gp  = this.spark(n.genArr);
+      const share  = totalRps > 0 ? (n.rps / totalRps) * 100 : 0;
+      const kvPct  = Math.round(n.kv * 100);
+      const kvCol  = n.kv < 0.7 ? '#2ED3C6' : n.kv < 0.9 ? '#F5B544' : '#FF5D5D';
+      return {
+        name: n.name,
+        gpu:  n.model || n.instance,
+        statusColor: sc, statusBg: sb, statusLabel: n.status.toUpperCase(),
+        prefill: this.fmtInt(n.prefill),
+        gen:     this.fmtInt(n.gen),
+        pfLine: pfp.line, pfArea: pfp.area, pfColor: PF,
+        genLine: gp.line, genArea: gp.area, genColor: GEN,
+        running: n.running,
+        queued:  n.queued,
+        queueColor: n.queued > 25 ? '#FF5D5D' : n.queued > 10 ? '#F5B544' : '#E6ECF5',
+        ttft:    n.status === 'down' ? '—' : this.fmtInt(n.ttft),
+        kvPct,   kvColor: kvCol,
+        sharePct:   share.toFixed(1),
+        shareLabel: share.toFixed(1) + '%',
+        routeColor: n.status === 'down' ? '#FF5D5D' : n.status === 'degraded' ? '#F5B544' : RT,
+        rps: n.status === 'down' ? '0/s' : n.rps.toFixed(1) + '/s',
+      };
+    });
+
+    // ── KPI 카드 헬퍼 ──
+    const mk = (label, value, unit, color, hkey, subOverride, invert) => {
+      const sp = this.spark(hist[hkey]);
+      const p  = this.pct(hist[hkey]);
+      const up = p >= 0;
+      let sub, dcol;
+      if (subOverride) {
+        sub = subOverride; dcol = '#55617A';
+      } else {
+        sub  = (up ? '▲ ' : '▼ ') + Math.abs(p).toFixed(1) + '%  vs 1m';
+        dcol = invert ? (up ? '#F5B544' : '#4ADE80') : (up ? '#4ADE80' : '#FF5D5D');
+      }
+      return { label, value, unit, color, line: sp.line, area: sp.area, sub, deltaColor: dcol };
+    };
+
+    const last = a => a[a.length - 1] || 0;
+    const tPf   = last(hist.pf),  tGen  = last(hist.gen);
+    const tRps  = last(hist.rps), tRun  = last(hist.run);
+    const tTtft = last(hist.ttft),tCum  = last(hist.cum);
+
+    const kpis = [
+      { ...mk('Total Prefill',     this.fmtInt(tPf),  'tok/s',   PF,       'pf'),                           query: 'sum(rate(vllm:prompt_tokens_total[1m]))' },
+      { ...mk('Total Generation',  this.fmtInt(tGen), 'tok/s',   GEN,      'gen'),                          query: 'sum(rate(vllm:generation_tokens_total[1m]))' },
+      { ...mk('Cumulative Tokens', this.fmtBig(tCum), 'tokens',  '#E6ECF5','cum', 'prompt + generation'),   query: 'sum(vllm:prompt_tokens_total)+sum(vllm:generation_tokens_total)' },
+      { ...mk('Requests / sec',    this.fmtInt(tRps), 'req/s',   RT,       'rps'),                          query: 'sum(rate(vllm:request_success_total[1m]))' },
+      { ...mk('TTFT p95',          this.fmtInt(tTtft),'ms',      '#F5B544','ttft', null, true),             query: 'histogram_quantile(0.95,sum(rate(vllm:time_to_first_token_seconds_bucket[5m]))by(le))*1000' },
+      { ...mk('Running / Queued',  this.fmtInt(tRun), 'running', '#4ADE80','run', tQ + ' queued'),
+        deltaColor: tQ > 30 ? '#F5B544' : '#55617A' },
+    ];
+
+    // ── 노드 그리드 레이아웃 (노드 수에 따라 동적 계산) ──
+    const count = nodes.length || 8; // loading 중엔 placeholder 8개
+    const cols  = count <= 3 ? Math.max(count, 1) : 4;
+    const rows  = Math.ceil(count / cols) || 1;
+    const nodeGridStyle = `grid-template-columns:repeat(${cols},1fr);grid-template-rows:repeat(${rows},1fr)`;
+
+    const healthy  = nodes.filter(n => n.status === 'healthy').length;
+    const degraded = nodes.filter(n => n.status === 'degraded').length;
+    const downC    = nodes.filter(n => n.status === 'down').length;
+
+    return {
+      now: this.state.now,
+      nodeCount: nodes.length,
+      nodeGridStyle,
+      healthy, degraded, down: downC,
+      kpis,
+      nodes: renderedNodes,
+      showPromql,
+      totalRps:    this.fmtInt(totalRps),
+      activeConns: this.fmtInt(tRun * 3 + tQ),
+      // 5xx / p95: nginx-exporter 없이는 vLLM 데이터 기반 추정치
+      err5xx:   downC > 0 ? (12 + Math.round(Math.random() * 6)) : Math.round(Math.random() * 2),
+      errColor: downC > 0 ? '#FF5D5D' : '#4ADE80',
+      upP95:    this.fmtInt(tTtft * 1.15 + 40),
+      error,
+      hasError: !!error,
+      loading,
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,27 @@
+global:
+  scrape_interval: ${SCRAPE_INTERVAL}
+  evaluation_interval: ${EVALUATION_INTERVAL}
+  external_labels:
+    cluster: vllm-cluster
+
+scrape_configs:
+
+  # vLLM 노드 — VLLM_NODES에서 생성된 targets JSON을 file_sd로 읽음
+  - job_name: vllm
+    metrics_path: ${VLLM_METRICS_PATH}
+    file_sd_configs:
+      - files: [/prometheus-targets/vllm.json]
+        refresh_interval: 30s
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+
+  # nginx-exporter (--profile nginx-metrics 사용 시 활성화)
+  - job_name: nginx
+    static_configs:
+      - targets: ['nginx-exporter:9113']
+
+  # Prometheus 자기 자신
+  - job_name: prometheus
+    static_configs:
+      - targets: ['localhost:9090']

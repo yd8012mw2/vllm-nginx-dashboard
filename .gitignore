@@ -1,0 +1,13 @@
+# 환경 변수 — .env.example을 복사해서 사용
+.env
+
+# 생성된 파일
+nginx/config.js
+
+# macOS
+.DS_Store
+
+# 에디터
+.idea/
+.vscode/
+*.swp

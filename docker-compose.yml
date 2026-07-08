@@ -1,0 +1,117 @@
+name: vllm-monitor
+
+services:
+
+  # ──────────────────────────────────────────────────────────────
+  # Init: .env의 VLLM_NODES를 Prometheus file_sd JSON으로 변환
+  # ──────────────────────────────────────────────────────────────
+  setup:
+    image: alpine:3
+    env_file: .env
+    volumes:
+      - ./scripts/gen-targets.sh:/gen-targets.sh:ro
+      - prometheus_targets:/prometheus-targets
+    command: sh /gen-targets.sh
+    restart: "no"
+
+  # ──────────────────────────────────────────────────────────────
+  # Prometheus
+  # ──────────────────────────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --config.expand-env=true
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=${PROMETHEUS_RETENTION:-15d}
+      - --web.enable-lifecycle
+      - --web.external-url=/api/prometheus
+      - --web.route-prefix=/
+    env_file: .env
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_targets:/prometheus-targets:ro
+      - prometheus_data:/prometheus
+    depends_on:
+      setup:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  # ──────────────────────────────────────────────────────────────
+  # Grafana
+  # ──────────────────────────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:11.0.0
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GF_SECURITY_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GF_SECURITY_ADMIN_PASSWORD:-admin123}
+      GF_SERVER_ROOT_URL: "%(protocol)s://%(domain)s:%(http_port)s/grafana/"
+      GF_SERVER_SERVE_FROM_SUB_PATH: "true"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+  # ──────────────────────────────────────────────────────────────
+  # Frontend: 정적 대시보드 서빙 + Prometheus/Grafana 역방향 프록시
+  # http://localhost:8080           → 대시보드
+  # http://localhost:8080/api/prometheus/ → Prometheus API
+  # http://localhost:8080/grafana/  → Grafana UI
+  #
+  # 기동 시 .env 값을 config.js로 주입 (envsubst):
+  #   PROMETHEUS_URL, SCRAPE_INTERVAL_MS → /config.js
+  # ──────────────────────────────────────────────────────────────
+  frontend:
+    image: nginx:alpine
+    entrypoint:
+      - sh
+      - -c
+      - |
+        envsubst '$PROMETHEUS_URL $SCRAPE_INTERVAL_MS' \
+          < /config.js.tmpl \
+          > /usr/share/nginx/html/config.js
+        exec nginx -g 'daemon off;'
+    environment:
+      PROMETHEUS_URL: /api/prometheus
+      SCRAPE_INTERVAL_MS: ${SCRAPE_INTERVAL_MS:-15000}
+    ports:
+      - "${FRONTEND_PORT:-8080}:80"
+    volumes:
+      - ./nginx/config.js.tmpl:/config.js.tmpl:ro
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - .:/usr/share/nginx/html:ro
+    depends_on:
+      - prometheus
+      - grafana
+    restart: unless-stopped
+
+  # ──────────────────────────────────────────────────────────────
+  # nginx-prometheus-exporter (선택)
+  # nginx.conf에 stub_status 블록이 있을 때만 활성화:
+  #   docker compose --profile nginx-metrics up
+  # ──────────────────────────────────────────────────────────────
+  nginx-exporter:
+    image: nginx/nginx-prometheus-exporter:1.1.0
+    command:
+      - --nginx.scrape-uri=${NGINX_STUB_STATUS_URL:-http://host.docker.internal/nginx_status}
+    ports:
+      - "${NGINX_EXPORTER_PORT:-9113}:9113"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    profiles:
+      - nginx-metrics
+    restart: unless-stopped
+
+volumes:
+  prometheus_targets:
+  prometheus_data:
+  grafana_data:

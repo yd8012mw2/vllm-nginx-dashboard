@@ -1,0 +1,5 @@
+// .env → docker-compose envsubst로 생성됨 — 직접 수정 금지
+window.__VLLM_CONFIG__ = {
+  prometheusUrl:  "${PROMETHEUS_URL}",
+  refreshMs:      ${SCRAPE_INTERVAL_MS}
+};
