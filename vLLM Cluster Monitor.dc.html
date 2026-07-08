@@ -216,6 +216,19 @@ class Component extends DCLogic {
     return j.data.result;
   }
 
+  // ── Prometheus 자체 시계 기준 "지금" (서버-클라이언트 시계 어긋남 방지) ──
+  // range 쿼리의 start/end는 브라우저 시계가 아니라 이 값으로 계산해야
+  // Prometheus 컨테이너 시계가 틀어져 있어도 result가 빈 배열로 오지 않음.
+  // 화면에 보여주는 LIVE 시계(this.state.now)는 그대로 클라이언트 시간 사용.
+  async serverNow() {
+    try {
+      const r = await this.pq('vector(time())');
+      return r.length ? parseFloat(r[0].value[1]) : Date.now() / 1000;
+    } catch {
+      return Date.now() / 1000;
+    }
+  }
+
   // ── 특정 instance의 현재값 추출 ───────────────────────────────
   valFor(res, instance, def = 0) {
     const f = res.find(r => r.metric.instance === instance);
@@ -237,8 +250,8 @@ class Component extends DCLogic {
   // ── 전체 데이터 갱신 ─────────────────────────────────────────
   async doRefresh() {
     try {
-      const now   = Date.now() / 1000;
       const step  = 15;
+      const now   = await this.serverNow();
       const start = now - this.H * step;
 
       // ── 1단계: 모든 instant 쿼리 병렬 요청 ──
