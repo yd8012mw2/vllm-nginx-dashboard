@@ -27,6 +27,7 @@ services:
       - --web.enable-lifecycle
       - --web.external-url=/api/prometheus
       - --web.route-prefix=/
+      - --log.level=${PROMETHEUS_LOG_LEVEL:-debug}
     env_file: .env
     ports:
       - "${PROMETHEUS_PORT:-9090}:9090"
