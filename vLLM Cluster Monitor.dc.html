@@ -429,7 +429,8 @@ class Component extends DCLogic {
       { ...mk('Requests / sec',    this.fmtInt(tRps), 'req/s',   RT,       'rps'),                          query: 'sum(rate(vllm:request_success_total[1m]))' },
       { ...mk('TTFT p95',          this.fmtInt(tTtft),'ms',      '#F5B544','ttft', null, true),             query: 'histogram_quantile(0.95,sum(rate(vllm:time_to_first_token_seconds_bucket[5m]))by(le))*1000' },
       { ...mk('Running / Queued',  this.fmtInt(tRun), 'running', '#4ADE80','run', tQ + ' queued'),
-        deltaColor: tQ > 30 ? '#F5B544' : '#55617A' },
+        deltaColor: tQ > 30 ? '#F5B544' : '#55617A',
+        query: 'sum(vllm:num_requests_running) / sum(vllm:num_requests_waiting)' },
     ];
 
     // ── 노드 그리드 레이아웃 (노드 수에 따라 동적 계산) ──
