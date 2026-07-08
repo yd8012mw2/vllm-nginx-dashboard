@@ -1,4 +1,4 @@
-name: vllm-monitor
+name: vllm-nginx-dashboard
 
 services:
 
