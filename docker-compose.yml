@@ -10,6 +10,7 @@ services:
     env_file: .env
     volumes:
       - ./scripts/gen-targets.sh:/gen-targets.sh:ro
+      - ./prometheus/prometheus.yml.tmpl:/prometheus.yml.tmpl:ro
       - prometheus_targets:/prometheus-targets
     command: sh /gen-targets.sh
     restart: "no"
@@ -20,8 +21,7 @@ services:
   prometheus:
     image: prom/prometheus:v2.53.0
     command:
-      - --config.file=/etc/prometheus/prometheus.yml
-      - --config.expand-env=true
+      - --config.file=/prometheus-targets/prometheus.yml
       - --storage.tsdb.path=/prometheus
       - --storage.tsdb.retention.time=${PROMETHEUS_RETENTION:-15d}
       - --web.enable-lifecycle
@@ -31,7 +31,6 @@ services:
     ports:
       - "${PROMETHEUS_PORT:-9090}:9090"
     volumes:
-      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_targets:/prometheus-targets:ro
       - prometheus_data:/prometheus
     depends_on:
@@ -76,9 +75,9 @@ services:
       - sh
       - -c
       - |
-        envsubst '$PROMETHEUS_URL $SCRAPE_INTERVAL_MS' \
+        envsubst '$$PROMETHEUS_URL $$SCRAPE_INTERVAL_MS' \
           < /config.js.tmpl \
-          > /usr/share/nginx/html/config.js
+          > /tmp/config.js
         exec nginx -g 'daemon off;'
     environment:
       PROMETHEUS_URL: /api/prometheus
