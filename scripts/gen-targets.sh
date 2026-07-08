@@ -33,6 +33,7 @@ cat "$OUTFILE"
 CONFIG_OUT=/prometheus-targets/prometheus.yml
 sed \
     -e "s|\${SCRAPE_INTERVAL}|${SCRAPE_INTERVAL:-15s}|g" \
+    -e "s|\${SCRAPE_TIMEOUT}|${SCRAPE_TIMEOUT:-12s}|g" \
     -e "s|\${EVALUATION_INTERVAL}|${EVALUATION_INTERVAL:-15s}|g" \
     -e "s|\${VLLM_METRICS_PATH}|${VLLM_METRICS_PATH:-/metrics}|g" \
     /prometheus.yml.tmpl > "$CONFIG_OUT"
